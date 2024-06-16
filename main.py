@@ -2,42 +2,88 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-def iris_segmentation(image_path):
+
+def iris_pupil_segmentation(image_path):
     # Load the image
-    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    image = cv2.imread(image_path)
     if image is None:
         print("Error loading image")
         return
 
-    # Apply GaussianBlur to reduce noise and improve circle detection
-    blurred_image = cv2.GaussianBlur(image, (9, 9), 2)
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # Detect the iris using the HoughCircles method
-    circles = cv2.HoughCircles(blurred_image, cv2.HOUGH_GRADIENT, dp=1, minDist=50,
-                               param1=100, param2=30, minRadius=20, maxRadius=80)
+    # Apply median blur to reduce noise
+    blurred_image = cv2.medianBlur(gray_image, 5)
 
-    if circles is not None:
-        circles = np.uint8(np.around(circles))
-        for circle in circles[0, :]:
-            center = (circle[0], circle[1])
-            radius = circle[2]
+    # Use adaptive histogram equalization to improve contrast
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced_image = clahe.apply(blurred_image)
 
-            # Draw the outer circle
-            cv2.circle(image, center, radius, (255, 0, 0), 2)
-            # Draw the center of the circle
-            cv2.circle(image, center, 2, (0, 255, 0), 3)
+    # Detect edges using the Canny edge detector
+    edges = cv2.Canny(enhanced_image, threshold1=50, threshold2=150)
+
+    # Use HoughCircles to detect the outer boundary of the iris
+    iris_circles = cv2.HoughCircles(edges, cv2.HOUGH_GRADIENT, dp=1.2, minDist=10,
+                                    param1=100, param2=30, minRadius=20, maxRadius=40)
+
+    if iris_circles is not None:
+        iris_circles = np.uint16(np.around(iris_circles))
+
+        # Assuming the first detected circle is the iris
+        iris_circle = iris_circles[0][0]
+        iris_center = (int(iris_circle[0]), int(iris_circle[1]))
+        iris_radius = int(iris_circle[2])
+
+        # Create a mask for the iris
+        iris_mask = np.zeros_like(gray_image)
+        cv2.circle(iris_mask, iris_center, iris_radius, 255, thickness=-1)
+
+        # Refine the pupil detection within the iris region
+        pupil_edges = cv2.bitwise_and(edges, edges, mask=iris_mask)
+        pupil_circles = cv2.HoughCircles(pupil_edges, cv2.HOUGH_GRADIENT, dp=1.2, minDist=20,
+                                         param1=100, param2=20, minRadius=10, maxRadius=iris_radius // 2)
+
+        if pupil_circles is not None:
+            pupil_circles = np.uint16(np.around(pupil_circles))
+            # Assuming the first detected circle within the iris is the pupil
+            pupil_circle = pupil_circles[0][0]
+            pupil_center = (int(pupil_circle[0]), int(pupil_circle[1]))
+            pupil_radius = int(pupil_circle[2])
+        else:
+            pupil_center = iris_center
+            pupil_radius = iris_radius // 3
+
+        # Draw the iris
+        cv2.circle(image, iris_center, iris_radius, (255, 0, 0), 2)
+
+        # Ensure text position is within the image bounds for iris
+        text_x_iris = max(0, min(image.shape[1] - 30, iris_center[0] - 30))
+        text_y_iris = max(0, min(image.shape[0] - 10, iris_center[1] - iris_radius - 10))
+        cv2.putText(image, 'Iris', (text_x_iris, text_y_iris),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
+        # Draw the pupil
+        cv2.circle(image, pupil_center, pupil_radius, (0, 0, 255), 2)
+
+        # Ensure text position is within the image bounds for pupil
+        text_x_pupil = max(0, min(image.shape[1] - 30, pupil_center[0] - 30))
+        text_y_pupil = max(0, min(image.shape[0] - 10, pupil_center[1] - pupil_radius - 10))
+        cv2.putText(image, 'Pupil', (text_x_pupil, text_y_pupil),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
     else:
         print("No circles were found")
 
     # Display the result
     plt.figure(figsize=(8, 6))
-    plt.imshow(image, cmap='gray')
-    plt.title('Iris Segmentation')
+    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    plt.title('Iris and Pupil Segmentation')
     plt.axis('off')
     plt.show()
 
-# Path to the input image
-image_path = 'images 1.jpeg'
 
-# Perform iris segmentation
-iris_segmentation(image_path)
+# Path to the input image
+image_path = 'images 1.jpeg'  # Use the path to the provided image
+
+# Perform iris and pupil segmentation
+iris_pupil_segmentation(image_path)
+
