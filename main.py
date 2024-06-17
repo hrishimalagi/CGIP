@@ -2,14 +2,14 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-
 def iris_pupil_segmentation(image_path):
     # Load the image
     image = cv2.imread(image_path)
     if image is None:
-        print("Error loading image")
+        print(f"Error: Could not read image '{image_path}'")
         return
 
+    # Convert image to grayscale
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Apply median blur to reduce noise
@@ -50,6 +50,7 @@ def iris_pupil_segmentation(image_path):
             pupil_center = (int(pupil_circle[0]), int(pupil_circle[1]))
             pupil_radius = int(pupil_circle[2])
         else:
+            # If pupil detection fails, use iris center and smaller radius
             pupil_center = iris_center
             pupil_radius = iris_radius // 3
 
@@ -71,7 +72,7 @@ def iris_pupil_segmentation(image_path):
         cv2.putText(image, 'Pupil', (text_x_pupil, text_y_pupil),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
     else:
-        print("No circles were found")
+        print("Error: No iris circles were found")
 
     # Display the result
     plt.figure(figsize=(8, 6))
@@ -82,8 +83,7 @@ def iris_pupil_segmentation(image_path):
 
 
 # Path to the input image
-image_path = 'images 1.jpeg'  # Use the path to the provided image
+image_path = 'images 1.jpeg'  # Replace with the path to your image
 
 # Perform iris and pupil segmentation
 iris_pupil_segmentation(image_path)
-
